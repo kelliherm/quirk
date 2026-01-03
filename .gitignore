@@ -1,0 +1,27 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment (uv/pip)
+.venv/
+
+# uv package manager files
+uv.lock
+.uv/
+
+# Python package build artifacts
+*.egg-info/
+dist/
+build/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python version management
+.python-version

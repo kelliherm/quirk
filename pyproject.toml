@@ -1,0 +1,9 @@
+[project]
+name = "quirk"
+version = "0.1.0"
+description = "An open-source software development kit for building, simulating, and executing quantum circuits."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=2.4.0",
+]
