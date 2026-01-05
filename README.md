@@ -2,13 +2,6 @@
 
 Quirk is an open-source software development kit for building, simulating, and executing quantum circuits. It provides an interface similar to Qiskit for creating quantum algorithms, applying quantum gates, simulating statevectors, and measuring qubits.
 
-## Features
-
-- **Intuitive API**: Qiskit-like interface for building quantum circuits
-- **Comprehensive Gate Library**: Support for common single, two, and three-qubit gates
-- **Statevector Simulation**: Efficient quantum state simulation
-- **Measurement Support**: Full measurement capabilities with classical registers
-
 ## Installation
 
 To install Quirk, begin by cloning the repository to the local directory.
@@ -29,7 +22,7 @@ pip install -e .
 The following examples walks you through the process of creating and simulating a simple quantum circuit, known as the Bell state.
 
 ```py
-from quirk import QuantumCircuit
+from quirk import QuantumCircuit, Simulator
 
 # Create a quantum circuit with 2 qubits and 2 classical bits
 qc = QuantumCircuit(2, 2)
@@ -43,6 +36,14 @@ qc.cx(0, 1)
 # Measure both qubits
 qc.measure(0, 0)
 qc.measure(1, 1)
+
+# Simulate the circuit
+simulator = Simulator()
+result = simulator.run(qc, shots=1000)
+
+# View results
+print(result)
+print(result.get_counts())
 ```
 
 ## Gate Library
@@ -95,6 +96,13 @@ quirk/
 │   │   ├── instruction.py    # Instruction class
 │   │   ├── quantumcircuit.py # Circuit builder
 │   │   └── register.py       # Register classes
+│   └── simulation/
+│   │   ├── __init__.py
+│   │   ├── simulator.py      # Circuit simulator
+│   │   └── statevector.py    # Statevector class
+│   └── utils/
+│       ├── __init__.py
+│       └── helpers.py        # Helper functions
 ├── README.md
 └── pyproject.toml
 ```

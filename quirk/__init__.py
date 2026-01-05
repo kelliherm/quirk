@@ -35,6 +35,7 @@ from quirk.circuit import (
     YGate,
     ZGate,
 )
+from quirk.simulation import Simulator, SimulatorResult, Statevector
 
 __version__ = "0.1.0"
 
@@ -69,4 +70,8 @@ __all__ = [
     "CCXGate",
     "FredkinGate",
     "CSWAPGate",
+    # Simulation
+    "Simulator",
+    "SimulatorResult",
+    "Statevector",
 ]
