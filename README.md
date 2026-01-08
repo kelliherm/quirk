@@ -106,3 +106,11 @@ quirk/
 ├── README.md
 └── pyproject.toml
 ```
+
+## License
+
+This project is open source and available under the MIT License. More details can be found in the [license](LICENSE) file.
+
+## Acknowledgments
+
+Quirk is inspired by IBM's Qiskit and aims to provide an educational and accessible quantum computing framework.

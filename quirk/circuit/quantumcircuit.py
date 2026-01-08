@@ -223,7 +223,6 @@ class QuantumCircuit:
         """Apply Fredkin gate (alias for cswap)."""
         return self.cswap(control, target1, target2)
 
-    # Measurement
     def measure(self, qubit: int, classical_bit: int) -> "QuantumCircuit":
         """
         Measure a qubit and store the result in a classical bit.
@@ -252,7 +251,6 @@ class QuantumCircuit:
             self.measure(i, i)
         return self
 
-    # Circuit information
     def depth(self) -> int:
         """Calculate the depth of the circuit (number of time steps)."""
         if not self.instructions:
@@ -284,7 +282,6 @@ class QuantumCircuit:
             counts[gate_name] = counts.get(gate_name, 0) + 1
         return counts
 
-    # Visualization
     def draw(self, output: str = "text") -> Optional[str]:
         """
         Draw the quantum circuit.
