@@ -2,6 +2,9 @@
 
 Quirk is an open-source software development kit for building, simulating, and executing quantum circuits. It provides an interface similar to Qiskit for creating quantum algorithms, applying quantum gates, simulating statevectors, and measuring qubits.
 
+> [!NOTE]
+> The current development of Quirk is focused on shifting the circuit representation to a DAG based data structure. Due to dependency differences between the `rustworkx` crate and the current project, development is being done in the `dag` branch.
+
 ## Installation
 
 To install Quirk, begin by cloning the repository to the local directory.
