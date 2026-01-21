@@ -5,6 +5,7 @@ Quantum circuit implementation for building and managing quantum circuits.
 from typing import List, Optional, Union
 
 import numpy as np
+import rustworkx as rwx
 
 from quirk.circuit.gate import (
     CCXGate,
@@ -34,6 +35,12 @@ from quirk.circuit.gate import (
 from quirk.circuit.instruction import Instruction
 from quirk.circuit.register import ClassicalRegister, QuantumRegister
 
+try:
+    import graphviz
+    HAS_GRAPHVIZ = True
+except ImportError:
+    HAS_GRAPHVIZ = False
+
 
 class QuantumCircuit:
     """Main class for building and managing quantum circuits."""
@@ -41,61 +48,83 @@ class QuantumCircuit:
     def __init__(
         self,
         qubits: Optional[Union[int, QuantumRegister]] = None,
-        classical_bits: Optional[Union[int, ClassicalRegister]] = None,
+        clbits: Optional[Union[int, ClassicalRegister]] = None,
     ) -> None:
         """
         Initialize a quantum circuit.
 
         Args:
             qubits: Number of qubits or a QuantumRegister
-            classical_bits: Number of classical bits or a ClassicalRegister
+            clbits: Number of classical bits or a ClassicalRegister
         """
         # Handle quantum register
         if isinstance(qubits, QuantumRegister):
-            self.num_qubits = qubits.size
+            self.qubits = qubits.size
             self.qreg = qubits
         elif isinstance(qubits, int):
-            self.num_qubits = qubits
+            self.qubits = qubits
             self.qreg = QuantumRegister(qubits)
         elif qubits is None:
-            self.num_qubits = 0
+            self.qubits = 0
             self.qreg = None
         else:
             raise TypeError("qubits must be an int or QuantumRegister")
 
         # Handle classical register
-        if isinstance(classical_bits, ClassicalRegister):
-            self.num_clbits = classical_bits.size
-            self.creg = classical_bits
-        elif isinstance(classical_bits, int):
-            self.num_clbits = classical_bits
-            self.creg = ClassicalRegister(classical_bits)
-        elif classical_bits is None:
-            self.num_clbits = 0
+        if isinstance(clbits, ClassicalRegister):
+            self.clbits = clbits.size
+            self.creg = clbits
+        elif isinstance(clbits, int):
+            self.clbits = clbits
+            self.creg = ClassicalRegister(clbits)
+        elif clbits is None:
+            self.clbits = 0
             self.creg = None
         else:
-            raise TypeError("classical_bits must be an int or ClassicalRegister")
+            raise TypeError("clbits must be an int or ClassicalRegister")
 
-        # Store circuit instructions
+        # Store qubits and gates as a DAG
+        self.dag: rwx.PyDAG = rwx.PyDAG()
+        
+        # Create input nodes for each qubit
+        self.input_nodes = {}
+        for i in range(self.qubits):
+            node_idx = self.dag.add_node({"type": "input", "qubit": i, "label": f"q_in[{i}]"})
+            self.input_nodes[i] = node_idx
+        
+        # Create output nodes for each qubit (final state)
+        self.output_nodes = {}
+        for i in range(self.qubits):
+            node_idx = self.dag.add_node({"type": "output", "qubit": i, "label": f"q_out[{i}]"})
+            self.output_nodes[i] = node_idx
+        
+        # Track the last gate node for each qubit wire
+        # Initially, the "last" node for each qubit is the input node
+        self.qubit_last_node = {i: self.input_nodes[i] for i in range(self.qubits)}
+        
+        # Track if DAG has been finalized to prevent duplicate edges
+        self._dag_finalized = False
+        
+        # Store circuit instructions (for compatibility)
         self.instructions: List[Instruction] = []
 
     def _validate_qubit_index(self, qubit: int) -> None:
         """Validate that a qubit index is within bounds."""
-        if qubit < 0 or qubit >= self.num_qubits:
+        if qubit < 0 or qubit >= self.qubits:
             raise IndexError(
-                f"Qubit index {qubit} out of range for circuit with {self.num_qubits} qubits"
+                f"Qubit index {qubit} out of range for circuit with {self.qubits} qubits"
             )
 
     def _validate_classical_bit_index(self, bit: int) -> None:
         """Validate that a classical bit index is within bounds."""
-        if bit < 0 or bit >= self.num_clbits:
+        if bit < 0 or bit >= self.clbits:
             raise IndexError(
-                f"Classical bit index {bit} out of range for circuit with {self.num_clbits} classical bits"
+                f"Classical bit index {bit} out of range for circuit with {self.clbits} classical bits"
             )
 
     def _add_gate(self, gate: Gate, qubits: List[int]) -> None:
         """
-        Add a gate to the circuit.
+        Add a gate to the circuit DAG.
 
         Args:
             gate: The gate to add
@@ -109,6 +138,27 @@ class QuantumCircuit:
                 f"Gate {gate.name} requires {gate.num_qubits} qubits, got {len(qubits)}"
             )
 
+        # Create a node for this gate in the DAG
+        gate_node_data = {
+            "type": "gate",
+            "gate": gate,
+            "qubits": qubits,
+            "label": f"{gate.name}"
+        }
+        gate_node_idx = self.dag.add_node(gate_node_data)
+        
+        # Add edges from the last node on each qubit wire to this gate node
+        # Edges represent qubit states flowing from one gate to another
+        for qubit in qubits:
+            last_node = self.qubit_last_node[qubit]
+            # Edge represents the qubit state connecting the previous operation to this gate
+            self.dag.add_edge(last_node, gate_node_idx, {"qubit": qubit, "state": f"q[{qubit}]"})
+        
+        # Update the last node for each qubit to this gate
+        for qubit in qubits:
+            self.qubit_last_node[qubit] = gate_node_idx
+
+        # Store instruction for backward compatibility
         self.instructions.append(Instruction(gate, qubits))
 
     # Single-qubit gates
@@ -234,20 +284,37 @@ class QuantumCircuit:
         self._validate_qubit_index(qubit)
         self._validate_classical_bit_index(classical_bit)
 
-        # Create a special "measurement" gate
+        # Create a special "measurement" gate node
         measure_gate = Gate("measure", 1, np.eye(2, dtype=complex))
+        measure_node_data = {
+            "type": "measurement",
+            "gate": measure_gate,
+            "qubits": [qubit],
+            "classical_bits": [classical_bit],
+            "label": f"M[q{qubit}->c{classical_bit}]"
+        }
+        measure_node_idx = self.dag.add_node(measure_node_data)
+        
+        # Connect from the last node on this qubit wire
+        last_node = self.qubit_last_node[qubit]
+        self.dag.add_edge(last_node, measure_node_idx, {"qubit": qubit, "state": f"q[{qubit}]"})
+        
+        # Update last node for this qubit
+        self.qubit_last_node[qubit] = measure_node_idx
+        
+        # Store instruction for compatibility
         instruction = Instruction(measure_gate, [qubit], [classical_bit])
         self.instructions.append(instruction)
         return self
 
     def measure_all(self) -> "QuantumCircuit":
         """Measure all qubits to corresponding classical bits."""
-        if self.num_clbits < self.num_qubits:
+        if self.clbits < self.qubits:
             raise ValueError(
-                f"Not enough classical bits ({self.num_clbits}) to measure all qubits ({self.num_qubits})"
+                f"Not enough classical bits ({self.clbits}) to measure all qubits ({self.qubits})"
             )
 
-        for i in range(self.num_qubits):
+        for i in range(self.qubits):
             self.measure(i, i)
         return self
 
@@ -257,7 +324,7 @@ class QuantumCircuit:
             return 0
 
         # Track when each qubit is last used
-        qubit_times = [0] * self.num_qubits
+        qubit_times = [0] * self.qubits
         max_time = 0
 
         for instruction in self.instructions:
@@ -300,9 +367,9 @@ class QuantumCircuit:
 
         # Build a simple text representation
         lines = []
-        lines.append(f"Quantum Circuit with {self.num_qubits} qubits")
-        if self.num_clbits > 0:
-            lines.append(f"Classical bits: {self.num_clbits}")
+        lines.append(f"Quantum Circuit with {self.qubits} qubits")
+        if self.clbits > 0:
+            lines.append(f"Classical bits: {self.clbits}")
         lines.append("-" * 50)
 
         for i, instruction in enumerate(self.instructions):
@@ -317,11 +384,197 @@ class QuantumCircuit:
 
         lines.append("-" * 50)
         lines.append(f"Total gates: {self.size()}, Depth: {self.depth()}")
+        lines.append(f"DAG: {len(self.dag.nodes())} nodes, {len(self.dag.edges())} edges")
 
         return "\n".join(lines)
+    
+    def finalize_dag(self) -> None:
+        """
+        Finalize the DAG by connecting all qubit wires to output nodes.
+        This should be called before analyzing or visualizing the complete DAG.
+        Only runs once to prevent duplicate edges.
+        """
+        # Only finalize once
+        if self._dag_finalized:
+            return
+        
+        for qubit in range(self.qubits):
+            last_node = self.qubit_last_node[qubit]
+            output_node = self.output_nodes[qubit]
+            # Only add edge if not already connected to itself
+            if last_node != output_node:
+                self.dag.add_edge(last_node, output_node, {"qubit": qubit, "state": f"q[{qubit}]"})
+        
+        # Mark as finalized
+        self._dag_finalized = True
+    
+    def get_dag(self) -> rwx.PyDAG:
+        """
+        Get the DAG representation of the circuit.
+        Automatically finalizes the DAG before returning.
+        
+        Returns:
+            The rustworkx DAG representing the circuit
+        """
+        self.finalize_dag()
+        return self.dag
+    
+    def dag_nodes(self) -> list:
+        """
+        Get all nodes in the DAG.
+        
+        Returns:
+            List of node data dictionaries
+        """
+        return list(self.dag.nodes())
+    
+    def dag_edges(self) -> list:
+        """
+        Get all edges in the DAG.
+        
+        Returns:
+            List of edge data tuples
+        """
+        edges = []
+        # In rustworkx, edges() returns edge data objects
+        for edge_data in self.dag.edges():
+            edges.append(edge_data)
+        return edges
+    
+    def topological_sort(self) -> list:
+        """
+        Get a topological ordering of gates in the circuit.
+        
+        Returns:
+            List of node indices in topological order
+        """
+        try:
+            return rwx.topological_sort(self.dag)
+        except rwx.DAGHasCycle:
+            raise ValueError("Circuit DAG has a cycle - this should not happen!")
+    
+    def get_gate_nodes(self) -> list:
+        """
+        Get all gate nodes (excluding input/output nodes).
+        
+        Returns:
+            List of (node_index, node_data) tuples for gate nodes
+        """
+        gate_nodes = []
+        for idx in self.dag.node_indices():
+            node_data = self.dag[idx]
+            if node_data.get("type") == "gate" or node_data.get("type") == "measurement":
+                gate_nodes.append((idx, node_data))
+        return gate_nodes
+    
+    def dag_layers(self) -> list:
+        """
+        Get the circuit organized into layers (time steps).
+        Each layer contains gates that can execute in parallel.
+        
+        Returns:
+            List of layers, where each layer is a list of node indices
+        """
+        self.finalize_dag()
+        
+        # Use rustworkx's layers functionality
+        layers = []
+        node_to_layer = {}
+        
+        # Process nodes in topological order
+        for node_idx in rwx.topological_sort(self.dag):
+            node_data = self.dag[node_idx]
+            
+            # Skip input nodes
+            if node_data.get("type") == "input":
+                node_to_layer[node_idx] = 0
+                continue
+            
+            # Find predecessors of this node
+            predecessors = list(self.dag.predecessor_indices(node_idx))
+            
+            # Find the maximum layer of all predecessors
+            if predecessors:
+                max_pred_layer = max(node_to_layer.get(pred, 0) for pred in predecessors)
+                layer = max_pred_layer + 1
+            else:
+                layer = 0
+            
+            node_to_layer[node_idx] = layer
+            
+            # Add to layers list
+            while len(layers) <= layer:
+                layers.append([])
+            layers[layer].append(node_idx)
+        
+        # Filter out layers with only input/output nodes
+        filtered_layers = []
+        for layer in layers:
+            gate_layer = [n for n in layer if self.dag[n].get("type") in ["gate", "measurement"]]
+            if gate_layer:
+                filtered_layers.append(gate_layer)
+        
+        return filtered_layers
+    
+    def visualize_dag(self, filename: str = "circuit_dag", view: bool = False) -> Optional[str]:
+        """
+        Visualize the DAG using Graphviz.
+        
+        Args:
+            filename: Output filename (without extension)
+            view: Whether to open the visualization automatically
+            
+        Returns:
+            Path to the generated file, or None if Graphviz is not available
+        """
+        if not HAS_GRAPHVIZ:
+            print("Warning: graphviz package not installed. Install with: pip install graphviz")
+            return None
+        
+        self.finalize_dag()
+        
+        # Create a Graphviz digraph
+        dot = graphviz.Digraph(comment='Quantum Circuit DAG')
+        dot.attr(rankdir='LR')  # Left to right layout
+        dot.attr('node', shape='box')
+        
+        # Build a mapping of node indices (needed since nodes() doesn't give us indices)
+        node_map = {}
+        for idx in range(len(self.dag.nodes())):
+            node_map[idx] = self.dag[idx]
+        
+        # Add nodes with correct indices
+        for idx, node_data in node_map.items():
+            node_type = node_data.get('type', 'unknown')
+            label = node_data.get('label', f'Node {idx}')
+            
+            # Style nodes based on type
+            if node_type == 'input':
+                dot.node(str(idx), label, shape='circle', style='filled', fillcolor='lightblue')
+            elif node_type == 'output':
+                dot.node(str(idx), label, shape='circle', style='filled', fillcolor='lightgreen')
+            elif node_type == 'measurement':
+                dot.node(str(idx), label, shape='box', style='filled', fillcolor='lightyellow')
+            else:  # gate
+                gate = node_data.get('gate')
+                qubits = node_data.get('qubits', [])
+                gate_label = f"{gate.name}\nq{qubits}" if gate else label
+                dot.node(str(idx), gate_label, shape='box', style='filled', fillcolor='lightcoral')
+        
+        # Add edges with qubit labels
+        edge_list = self.dag.edge_list()
+        for src_idx, tgt_idx in edge_list:
+            edge_data = self.dag.get_edge_data(src_idx, tgt_idx)
+            qubit = edge_data.get('qubit', '?')
+            edge_label = f"q[{qubit}]"
+            dot.edge(str(src_idx), str(tgt_idx), label=edge_label)
+        
+        # Render
+        output_path = dot.render(filename, format='png', cleanup=True, view=view)
+        return output_path
 
     def __repr__(self) -> str:
-        return f"<QuantumCircuit({self.num_qubits} qubits, {self.num_clbits} classical bits, {self.size()} gates)>"
+        return f"<QuantumCircuit({self.qubits} qubits, {self.clbits} classical bits, {self.size()} gates)>"
 
     def __str__(self) -> str:
         return self.draw() or ""
