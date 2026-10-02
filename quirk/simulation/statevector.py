@@ -26,6 +26,9 @@ class Statevector:
         else:
             raise TypeError("Statevector data must be array-like or Statevector")
 
+        if self._data.ndim != 1 or not np.all(np.isfinite(self._data)):
+            raise ValueError("Statevector must be a finite one-dimensional array")
+
         # Validate that the dimension is a power of 2
         dim = len(self._data)
         if dim == 0 or (dim & (dim - 1)) != 0:
@@ -57,7 +60,7 @@ class Statevector:
         if not all(c in "01" for c in label):
             raise ValueError(f"Label must be a binary string, got '{label}'")
 
-        index = int(label, 2)
+        index = int(label, 2) if label else 0
         data = np.zeros(dim, dtype=complex)
         data[index] = 1.0
 
@@ -129,7 +132,7 @@ class Statevector:
 
         for i, prob in enumerate(probs):
             if prob > 1e-10:  # Only include non-negligible probabilities
-                label = format(i, f"0{self.num_qubits}b")
+                label = format(i, f"0{self.num_qubits}b") if self.num_qubits else ""
                 result[label] = round(float(prob), decimals)
 
         return result
@@ -147,15 +150,17 @@ class Statevector:
         Returns:
             Dictionary mapping basis states to counts
         """
-        if seed is not None:
-            np.random.seed(seed)
-
+        from numbers import Integral
+        if isinstance(shots, bool) or not isinstance(shots, Integral):
+            raise TypeError("shots must be an integer")
+        if shots < 0:
+            raise ValueError("shots must be nonnegative")
         probs = self.probabilities()
-        indices = np.random.choice(len(probs), size=shots, p=probs)
+        indices = np.random.default_rng(seed).choice(len(probs), size=shots, p=probs)
 
         counts = {}
         for idx in indices:
-            label = format(idx, f"0{self.num_qubits}b")
+            label = format(idx, f"0{self.num_qubits}b") if self.num_qubits else ""
             counts[label] = counts.get(label, 0) + 1
 
         return dict(sorted(counts.items()))
@@ -170,12 +175,9 @@ class Statevector:
         Returns:
             Tuple of (binary_label, integer_value)
         """
-        if seed is not None:
-            np.random.seed(seed)
-
         probs = self.probabilities()
-        outcome = np.random.choice(len(probs), p=probs)
-        label = format(outcome, f"0{self.num_qubits}b")
+        outcome = np.random.default_rng(seed).choice(len(probs), p=probs)
+        label = format(outcome, f"0{self.num_qubits}b") if self.num_qubits else ""
 
         return label, outcome
 
@@ -248,7 +250,7 @@ class Statevector:
         probs_dict = self.probabilities_dict(decimals=6)
 
         for label, prob in probs_dict.items():
-            amplitude = self._data[int(label, 2)]
+            amplitude = self._data[int(label, 2) if label else 0]
             real = amplitude.real
             imag = amplitude.imag
 

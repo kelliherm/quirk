@@ -2,12 +2,10 @@
 Quirk - An open-source quantum computing framework.
 
 Quirk is a Python SDK for building, simulating, and executing quantum circuits.
-It provides an intuitive API similar to Qiskit for creating quantum algorithms.
 """
 
 from quirk.circuit import (
     CCXGate,
-    ClassicalRegister,
     CNOTGate,
     CSWAPGate,
     CXGate,
@@ -17,10 +15,7 @@ from quirk.circuit import (
     Gate,
     HGate,
     IGate,
-    Instruction,
     QuantumCircuit,
-    QuantumRegister,
-    Register,
     RXGate,
     RYGate,
     RZGate,
@@ -40,13 +35,7 @@ from quirk.simulation import Simulator, SimulatorResult, Statevector
 __version__ = "0.1.0"
 
 __all__ = [
-    # Circuit building
     "QuantumCircuit",
-    "Instruction",
-    "QuantumRegister",
-    "ClassicalRegister",
-    "Register",
-    # Gates
     "Gate",
     "XGate",
     "YGate",
@@ -70,7 +59,6 @@ __all__ = [
     "CCXGate",
     "FredkinGate",
     "CSWAPGate",
-    # Simulation
     "Simulator",
     "SimulatorResult",
     "Statevector",

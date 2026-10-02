@@ -47,189 +47,10 @@ def create_ghz_state(qc: QuantumCircuit, qubits: List[int]) -> QuantumCircuit:
     return qc
 
 
-def create_w_state(qc: QuantumCircuit, qubits: List[int]) -> QuantumCircuit:
-    """
-    Create a W state across multiple qubits.
-    Note: This is a simplified implementation for 3 qubits.
-
-    Args:
-        qc: Quantum circuit
-        qubits: List of qubit indices (must be 3)
-
-    Returns:
-        The quantum circuit with W state gates applied
-    """
-    if len(qubits) != 3:
-        raise NotImplementedError(
-            "W state implementation currently supports only 3 qubits"
-        )
-
-    # W state for 3 qubits: (|001⟩ + |010⟩ + |100⟩)/√3
-    # Simplified circuit approximation
-    theta1 = 2 * np.arcsin(np.sqrt(1 / 3))
-    theta2 = 2 * np.arcsin(np.sqrt(1 / 2))
-
-    qc.ry(theta1, qubits[0])
-    qc.cx(qubits[0], qubits[1])
-    qc.x(qubits[0])
-    qc.ry(theta2, qubits[1])
-    qc.cx(qubits[1], qubits[2])
-
-    return qc
 
 
-def qft(qc: QuantumCircuit, qubits: List[int], inverse: bool = False) -> QuantumCircuit:
-    """
-    Apply Quantum Fourier Transform to specified qubits.
-
-    Args:
-        qc: Quantum circuit
-        qubits: List of qubit indices
-        inverse: If True, apply inverse QFT
-
-    Returns:
-        The quantum circuit with QFT gates applied
-    """
-    n = len(qubits)
-
-    if not inverse:
-        # Forward QFT
-        for i in range(n):
-            qc.h(qubits[i])
-            for j in range(i + 1, n):
-                angle = np.pi / (2 ** (j - i))
-                qc.rz(angle, qubits[j])
-
-        # Swap qubits to get correct order
-        for i in range(n // 2):
-            qc.swap(qubits[i], qubits[n - 1 - i])
-    else:
-        # Inverse QFT
-        # Swap qubits first
-        for i in range(n // 2):
-            qc.swap(qubits[i], qubits[n - 1 - i])
-
-        for i in range(n - 1, -1, -1):
-            for j in range(n - 1, i, -1):
-                angle = -np.pi / (2 ** (j - i))
-                qc.rz(angle, qubits[j])
-            qc.h(qubits[i])
-
-    return qc
 
 
-def phase_estimation(
-    qc: QuantumCircuit,
-    counting_qubits: List[int],
-    target_qubit: int,
-    num_iterations: int,
-) -> QuantumCircuit:
-    """
-    Apply quantum phase estimation algorithm structure.
-
-    Args:
-        qc: Quantum circuit
-        counting_qubits: Qubits used for phase counting
-        target_qubit: Target qubit for the unitary
-        num_iterations: Number of controlled unitary applications
-
-    Returns:
-        The quantum circuit with phase estimation gates applied
-    """
-    n = len(counting_qubits)
-
-    # Initialize counting qubits to superposition
-    for qubit in counting_qubits:
-        qc.h(qubit)
-
-    # Apply controlled unitaries (simplified - using Z rotations as example)
-    for i, qubit in enumerate(counting_qubits):
-        repetitions = 2 ** (n - 1 - i)
-        for _ in range(repetitions):
-            qc.cz(qubit, target_qubit)
-
-    # Apply inverse QFT
-    qft(qc, counting_qubits, inverse=True)
-
-    return qc
-
-
-def amplitude_amplification(
-    qc: QuantumCircuit, qubits: List[int], oracle_qubits: Optional[List[int]] = None
-) -> QuantumCircuit:
-    """
-    Apply Grover's diffusion operator (amplitude amplification).
-
-    Args:
-        qc: Quantum circuit
-        qubits: List of qubit indices
-        oracle_qubits: Specific qubits for the oracle (if None, uses all qubits)
-
-    Returns:
-        The quantum circuit with diffusion operator applied
-    """
-    if oracle_qubits is None:
-        oracle_qubits = qubits
-
-    # Apply H gates
-    for qubit in qubits:
-        qc.h(qubit)
-
-    # Apply X gates
-    for qubit in qubits:
-        qc.x(qubit)
-
-    # Multi-controlled Z (simplified for 2 qubits)
-    if len(qubits) == 2:
-        qc.cz(qubits[0], qubits[1])
-    elif len(qubits) == 3:
-        # Use Toffoli-like structure
-        qc.ccx(qubits[0], qubits[1], qubits[2])
-
-    # Apply X gates
-    for qubit in qubits:
-        qc.x(qubit)
-
-    # Apply H gates
-    for qubit in qubits:
-        qc.h(qubit)
-
-    return qc
-
-
-def barrier(qc: QuantumCircuit, qubits: Optional[List[int]] = None) -> QuantumCircuit:
-    """
-    Add a visual barrier to the circuit (currently just returns the circuit).
-    This is a placeholder for future visualization improvements.
-
-    Args:
-        qc: Quantum circuit
-        qubits: Optional list of qubits (if None, applies to all)
-
-    Returns:
-        The quantum circuit (unchanged)
-    """
-    # In a full implementation, this would add a barrier instruction
-    # For now, it's a no-op that maintains API compatibility
-    return qc
-
-
-def reset_qubit(qc: QuantumCircuit, qubit: int) -> QuantumCircuit:
-    """
-    Reset a qubit to |0⟩ state (measurement-based reset simulation).
-    Note: This is a simplified implementation using measurement and conditional X.
-
-    Args:
-        qc: Quantum circuit
-        qubit: Qubit index to reset
-
-    Returns:
-        The quantum circuit with reset operation
-    """
-    # In a real quantum computer, this would measure and conditionally flip
-    # For simulation, we can't truly reset without measurements
-    # This is a placeholder that would need simulator support
-    return qc
 
 
 def initialize_state(
@@ -338,22 +159,16 @@ def calculate_unitary(qc: QuantumCircuit) -> np.ndarray:
     Returns:
         Unitary matrix representing the circuit
     """
-    from quirk.simulation.simulator import Simulator
-
-    # Check for measurements
-    for instruction in qc.instructions:
-        if instruction.gate.name == "measure":
-            raise ValueError("Cannot calculate unitary for circuit with measurements")
-
-    # Build unitary by multiplying gate matrices
-    dim = 2**qc.num_qubits
+    from quirk.simulation.simulator import apply_gate
+    dim = 2 ** qc.num_qubits
     unitary = np.eye(dim, dtype=complex)
-
-    simulator = Simulator()
-    for instruction in qc.instructions:
-        gate_unitary = simulator._build_gate_unitary(instruction, qc.num_qubits)
-        unitary = gate_unitary @ unitary
-
+    for _, node in qc.get_gate_nodes():
+        if node["type"] == "measurement":
+            raise ValueError("Cannot calculate unitary for circuit with measurements")
+        unitary = np.column_stack([
+            apply_gate(unitary[:, i], node["gate"].to_matrix(), node["qubits"], qc.num_qubits)
+            for i in range(dim)
+        ])
     return unitary
 
 
@@ -402,18 +217,22 @@ def random_circuit(
     Returns:
         A random quantum circuit
     """
-    if seed is not None:
-        np.random.seed(seed)
+    from numbers import Integral
+    if isinstance(depth, bool) or not isinstance(depth, Integral):
+        raise TypeError("depth must be an integer")
+    if depth < 0:
+        raise ValueError("depth must be nonnegative")
+    rng = np.random.default_rng(seed)
 
     gates = ["h", "x", "y", "z", "s", "t", "rx", "ry", "rz"]
     two_qubit_gates = ["cx", "cz", "swap"]
 
-    qc = QuantumCircuit(num_qubits, num_qubits if measure else 0)
+    qc = QuantumCircuit(num_qubits)
 
     for _ in range(depth):
         # Add single-qubit gates
         for qubit in range(num_qubits):
-            gate = np.random.choice(gates)
+            gate = rng.choice(gates)
             if gate == "h":
                 qc.h(qubit)
             elif gate == "x":
@@ -427,16 +246,16 @@ def random_circuit(
             elif gate == "t":
                 qc.t(qubit)
             elif gate == "rx":
-                qc.rx(np.random.uniform(0, 2 * np.pi), qubit)
+                qc.rx(rng.uniform(0, 2 * np.pi), qubit)
             elif gate == "ry":
-                qc.ry(np.random.uniform(0, 2 * np.pi), qubit)
+                qc.ry(rng.uniform(0, 2 * np.pi), qubit)
             elif gate == "rz":
-                qc.rz(np.random.uniform(0, 2 * np.pi), qubit)
+                qc.rz(rng.uniform(0, 2 * np.pi), qubit)
 
         # Add two-qubit gate if we have multiple qubits
         if num_qubits > 1:
-            gate = np.random.choice(two_qubit_gates)
-            q1, q2 = np.random.choice(num_qubits, size=2, replace=False)
+            gate = rng.choice(two_qubit_gates)
+            q1, q2 = rng.choice(num_qubits, size=2, replace=False)
 
             if gate == "cx":
                 qc.cx(q1, q2)

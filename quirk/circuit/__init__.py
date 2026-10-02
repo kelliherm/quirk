@@ -1,6 +1,4 @@
-"""
-Circuit module for building and managing quantum circuits.
-"""
+"""Circuit module for building and managing quantum circuits."""
 
 from quirk.circuit.gate import (
     CCXGate,
@@ -27,16 +25,10 @@ from quirk.circuit.gate import (
     YGate,
     ZGate,
 )
-from quirk.circuit.instruction import Instruction
 from quirk.circuit.quantumcircuit import QuantumCircuit
-from quirk.circuit.register import ClassicalRegister, QuantumRegister, Register
 
 __all__ = [
     "QuantumCircuit",
-    "Instruction",
-    "QuantumRegister",
-    "ClassicalRegister",
-    "Register",
     "Gate",
     "XGate",
     "YGate",
