@@ -1,9 +1,6 @@
 # Quirk
 
-Quirk is an open-source software development kit for building, simulating, and executing quantum circuits. It provides an interface similar to Qiskit for creating quantum algorithms, applying quantum gates, simulating statevectors, and measuring qubits.
-
-> [!NOTE]
-> The current development of Quirk is focused on shifting the circuit representation to a DAG based data structure. Due to dependency differences between the `rustworkx` crate and the current project, development is being done in the `dag` branch.
+Quirk is an open-source software development kit for building, simulating, and executing quantum circuits with an interface similar to Qiskit.
 
 ## Installation
 
@@ -27,8 +24,8 @@ The following examples walks you through the process of creating and simulating 
 ```py
 from quirk import QuantumCircuit, Simulator
 
-# Create a quantum circuit with 2 qubits and 2 classical bits
-qc = QuantumCircuit(2, 2)
+# Create a quantum circuit with 2 qubits
+qc = QuantumCircuit(2)
 
 # Apply Hadamard gate
 qc.h(0)
@@ -42,7 +39,7 @@ qc.measure(1, 1)
 
 # Simulate the circuit
 simulator = Simulator()
-result = simulator.run(qc, shots=1000)
+result = simulator.run(qc, shots=1024)
 
 # View results
 print(result)
@@ -106,6 +103,7 @@ quirk/
 │   └── utils/
 │       ├── __init__.py
 │       └── helpers.py        # Helper functions
+├── API.md
 ├── README.md
 └── pyproject.toml
 ```
@@ -116,4 +114,4 @@ This project is open source and available under the MIT License. More details ca
 
 ## Acknowledgments
 
-Quirk is inspired by IBM's Qiskit and aims to provide an educational and accessible quantum computing framework.
+Quirk is inspired by IBM's Qiskit and utilizes a design that is very similar. It also makes use of the `rustworkx` package which was developed by members of the Qiskit team.
