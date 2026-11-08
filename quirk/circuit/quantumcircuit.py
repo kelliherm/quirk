@@ -3,19 +3,16 @@
 from collections import Counter
 from copy import deepcopy
 from numbers import Integral
-from typing import List
 
 import numpy as np
 import rustworkx as rwx
 
 from quirk.circuit.gate import (
     CCXGate,
-    CNOTGate,
     CSWAPGate,
     CXGate,
     CYGate,
     CZGate,
-    FredkinGate,
     Gate,
     HGate,
     IGate,
@@ -27,7 +24,6 @@ from quirk.circuit.gate import (
     SWAPGate,
     TdgGate,
     TGate,
-    ToffoliGate,
     U3Gate,
     XGate,
     YGate,
@@ -52,8 +48,12 @@ class QuantumCircuit:
         self._inputs = {}
         self._outputs = {}
         for q in range(self.num_qubits):
-            self._inputs[q] = self._dag.add_node(dict(type="input", qubit=q, label=f"q_in[{q}]"))
-            self._outputs[q] = self._dag.add_node(dict(type="output", qubit=q, label=f"q_out[{q}]"))
+            self._inputs[q] = self._dag.add_node(
+                dict(type="input", qubit=q, label=f"q_in[{q}]")
+            )
+            self._outputs[q] = self._dag.add_node(
+                dict(type="output", qubit=q, label=f"q_out[{q}]")
+            )
             self._dag.add_edge(self._inputs[q], self._outputs[q], dict(qubit=q))
 
     @property
@@ -108,9 +108,16 @@ class QuantumCircuit:
             raise ValueError(f"Gate {gate.name} requires {gate.num_qubits} qubits")
         matrix = np.asarray(gate.to_matrix(), dtype=complex)
         dim = 2 ** len(qubits)
-        if matrix.shape != (dim, dim) or not np.allclose(matrix.conj().T @ matrix, np.eye(dim)):
-            raise ValueError("Gate matrix must be unitary with dimensions matching its qubits")
-        return self._append_node(dict(type="gate", gate=deepcopy(gate), qubits=qubits, label=gate.name), qubits)
+        if matrix.shape != (dim, dim) or not np.allclose(
+            matrix.conj().T @ matrix, np.eye(dim)
+        ):
+            raise ValueError(
+                "Gate matrix must be unitary with dimensions matching its qubits"
+            )
+        return self._append_node(
+            dict(type="gate", gate=deepcopy(gate), qubits=qubits, label=gate.name),
+            qubits,
+        )
 
     def _add_gate(self, gate, qubits):
         return self.append(gate, qubits)
@@ -237,8 +244,12 @@ class QuantumCircuit:
             raise IndexError("Unknown DAG node")
         if self._dag[node_index]["type"] not in ("gate", "measurement"):
             raise ValueError("Input and output nodes cannot be removed")
-        incoming = {edge["qubit"]: src for src, _, edge in self._dag.in_edges(node_index)}
-        outgoing = {edge["qubit"]: dst for _, dst, edge in self._dag.out_edges(node_index)}
+        incoming = {
+            edge["qubit"]: src for src, _, edge in self._dag.in_edges(node_index)
+        }
+        outgoing = {
+            edge["qubit"]: dst for _, dst, edge in self._dag.out_edges(node_index)
+        }
         self._dag.remove_node(node_index)
         for q, src in incoming.items():
             self._dag.add_edge(src, outgoing[q], dict(qubit=q))
@@ -250,7 +261,9 @@ class QuantumCircuit:
             raise TypeError("other must be a QuantumCircuit")
         mapping = tuple(range(other.num_qubits)) if qubits is None else tuple(qubits)
         if len(mapping) != other.num_qubits or len(set(mapping)) != len(mapping):
-            raise ValueError("Wire mapping must contain one distinct index per source qubit")
+            raise ValueError(
+                "Wire mapping must contain one distinct index per source qubit"
+            )
         for q in mapping:
             self._validate_qubit_index(q)
         candidate = self.copy()
@@ -265,7 +278,9 @@ class QuantumCircuit:
 
     def measure(self, qubit: int):
         """Append a terminal computational-basis readout of a qubit."""
-        return self._append_node(dict(type="measurement", qubits=(qubit,), label=f"M[q{qubit}]"), (qubit,))
+        return self._append_node(
+            dict(type="measurement", qubits=(qubit,), label=f"M[q{qubit}]"), (qubit,)
+        )
 
     def measure_all(self):
         """Measure all wires that do not already end in a measurement."""
@@ -284,8 +299,11 @@ class QuantumCircuit:
 
     def get_gate_nodes(self):
         """Operation snapshots in dependency order, including measurements."""
-        return [(i, deepcopy(self._dag[i])) for i in self._ordered_indices()
-                if self._dag[i]["type"] in ("gate", "measurement")]
+        return [
+            (i, deepcopy(self._dag[i]))
+            for i in self._ordered_indices()
+            if self._dag[i]["type"] in ("gate", "measurement")
+        ]
 
     def dag_nodes(self):
         return deepcopy(list(self._dag.nodes()))
@@ -298,7 +316,9 @@ class QuantumCircuit:
         layers = []
         for i in self._ordered_indices():
             data = self._dag[i]
-            level = max((levels[p] for p in self._dag.predecessor_indices(i)), default=0)
+            level = max(
+                (levels[p] for p in self._dag.predecessor_indices(i)), default=0
+            )
             if data["type"] in ("gate", "measurement"):
                 while len(layers) <= level:
                     layers.append([])
@@ -314,8 +334,12 @@ class QuantumCircuit:
         return len(self.get_gate_nodes())
 
     def count_ops(self):
-        return dict(Counter(data["gate"].name if data["type"] == "gate" else "measure"
-                            for _, data in self.get_gate_nodes()))
+        return dict(
+            Counter(
+                data["gate"].name if data["type"] == "gate" else "measure"
+                for _, data in self.get_gate_nodes()
+            )
+        )
 
     def draw(self, output="text"):
         if output != "text":
@@ -331,11 +355,16 @@ class QuantumCircuit:
     def to_dot(self):
         """Graphviz source; does not require the Graphviz executable."""
         import graphviz
+
         dot = graphviz.Digraph(comment="Quantum Circuit DAG")
         dot.attr(rankdir="LR")
         for i in self._dag.node_indices():
             data = self._dag[i]
-            dot.node(str(i), data["label"], shape="circle" if data["type"] in ("input", "output") else "box")
+            dot.node(
+                str(i),
+                data["label"],
+                shape="circle" if data["type"] in ("input", "output") else "box",
+            )
         for src, dst, data in self._dag.weighted_edge_list():
             dot.edge(str(src), str(dst), label=f"q[{data['qubit']}]")
         return dot.source
@@ -343,7 +372,10 @@ class QuantumCircuit:
     def visualize_dag(self, filename="circuit_dag", view=False):
         """Render PNG; requires the Graphviz dot executable on PATH."""
         import graphviz
-        return graphviz.Source(self.to_dot()).render(filename, format="png", cleanup=True, view=view)
+
+        return graphviz.Source(self.to_dot()).render(
+            filename, format="png", cleanup=True, view=view
+        )
 
     def __repr__(self):
         return f"<QuantumCircuit({self.num_qubits} qubits, {self.size()} operations)>"

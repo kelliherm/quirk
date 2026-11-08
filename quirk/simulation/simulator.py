@@ -1,4 +1,5 @@
 """Execute circuit operations in DAG dependency order."""
+
 from typing import Dict, Optional
 from numbers import Integral
 import numpy as np
@@ -25,7 +26,11 @@ class Simulator:
             raise TypeError("shots must be an integer")
         if shots < 0:
             raise ValueError("shots must be nonnegative")
-        state = Statevector.from_int(0, circuit.num_qubits) if initial_statevector is None else Statevector(initial_statevector)
+        state = (
+            Statevector.from_int(0, circuit.num_qubits)
+            if initial_statevector is None
+            else Statevector(initial_statevector)
+        )
         if state.num_qubits != circuit.num_qubits:
             raise ValueError("Initial statevector qubit count does not match circuit")
         measured = []
@@ -34,19 +39,28 @@ class Simulator:
             if node["type"] == "measurement":
                 measured.extend(node["qubits"])
             else:
-                data = apply_gate(data, node["gate"].to_matrix(), node["qubits"], circuit.num_qubits)
+                data = apply_gate(
+                    data, node["gate"].to_matrix(), node["qubits"], circuit.num_qubits
+                )
         state = Statevector(data)
         counts = {}
         measured.sort()
         if measured and shots:
-            samples = np.random.default_rng(self.seed).choice(state.dim(), size=shots, p=state.probabilities())
+            samples = np.random.default_rng(self.seed).choice(
+                state.dim(), size=shots, p=state.probabilities()
+            )
             for sample in samples:
-                label = "".join(str((int(sample) >> (circuit.num_qubits - 1 - q)) & 1) for q in measured)
+                label = "".join(
+                    str((int(sample) >> (circuit.num_qubits - 1 - q)) & 1)
+                    for q in measured
+                )
                 counts[label] = counts.get(label, 0) + 1
         return SimulatorResult(state, dict(sorted(counts.items())), shots, circuit)
 
     def get_statevector(self, circuit, initial_statevector=None):
-        return self.run(circuit, shots=0, initial_statevector=initial_statevector).statevector
+        return self.run(
+            circuit, shots=0, initial_statevector=initial_statevector
+        ).statevector
 
 
 class SimulatorResult:

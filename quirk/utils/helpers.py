@@ -47,12 +47,6 @@ def create_ghz_state(qc: QuantumCircuit, qubits: List[int]) -> QuantumCircuit:
     return qc
 
 
-
-
-
-
-
-
 def initialize_state(
     qc: QuantumCircuit, state: str, qubits: Optional[List[int]] = None
 ) -> QuantumCircuit:
@@ -160,15 +154,23 @@ def calculate_unitary(qc: QuantumCircuit) -> np.ndarray:
         Unitary matrix representing the circuit
     """
     from quirk.simulation.simulator import apply_gate
-    dim = 2 ** qc.num_qubits
+
+    dim = 2**qc.num_qubits
     unitary = np.eye(dim, dtype=complex)
     for _, node in qc.get_gate_nodes():
         if node["type"] == "measurement":
             raise ValueError("Cannot calculate unitary for circuit with measurements")
-        unitary = np.column_stack([
-            apply_gate(unitary[:, i], node["gate"].to_matrix(), node["qubits"], qc.num_qubits)
-            for i in range(dim)
-        ])
+        unitary = np.column_stack(
+            [
+                apply_gate(
+                    unitary[:, i],
+                    node["gate"].to_matrix(),
+                    node["qubits"],
+                    qc.num_qubits,
+                )
+                for i in range(dim)
+            ]
+        )
     return unitary
 
 
@@ -218,6 +220,7 @@ def random_circuit(
         A random quantum circuit
     """
     from numbers import Integral
+
     if isinstance(depth, bool) or not isinstance(depth, Integral):
         raise TypeError("depth must be an integer")
     if depth < 0:

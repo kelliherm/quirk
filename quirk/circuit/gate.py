@@ -1,6 +1,4 @@
-"""
-Quantum gates implementation with matrix representations.
-"""
+"""Quantum gates implementation with matrix representations."""
 
 from typing import List, Optional
 

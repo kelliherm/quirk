@@ -151,6 +151,7 @@ class Statevector:
             Dictionary mapping basis states to counts
         """
         from numbers import Integral
+
         if isinstance(shots, bool) or not isinstance(shots, Integral):
             raise TypeError("shots must be an integer")
         if shots < 0:
